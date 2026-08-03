@@ -4,10 +4,14 @@ set -euo pipefail
 SUBSCRIPTION_ID="${1:?subscription id required}"
 GITHUB_OWNER="${2:?github owner required}"
 GITHUB_REPO="${3:?github repo required}"
-BRANCH="${4:-main}"
+# The GitHub environment used by our deployment workflows.
+# Both deployment workflows currently use: environment: development
+GITHUB_ENVIRONMENT="${4:-development}"
 
 APP_NAME="gh-${GITHUB_REPO}-oidc"
-SUBJECT="repo:${GITHUB_OWNER}/${GITHUB_REPO}:ref:refs/heads/${BRANCH}"
+# Azure will accept OIDC tokens only when they come from this repository
+# and from the GitHub environment named "development".
+SUBJECT="repo:${GITHUB_OWNER}/${GITHUB_REPO}:environment:${GITHUB_ENVIRONMENT}"
 
 az account set --subscription "$SUBSCRIPTION_ID"
 
@@ -24,7 +28,7 @@ az role assignment create \
 
 cat > /tmp/federated-credential.json <<EOF
 {
-  "name": "github-${BRANCH}",
+  "name": "github-${GITHUB_ENVIRONMENT}",
   "issuer": "https://token.actions.githubusercontent.com",
   "subject": "${SUBJECT}",
   "description": "GitHub Actions OIDC for ${GITHUB_OWNER}/${GITHUB_REPO}",
