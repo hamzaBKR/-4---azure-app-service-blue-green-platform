@@ -1,0 +1,68 @@
+name: Deploy Application
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Azure resource group
+        required: true
+        default: rg-az204-appservice-dev
+      web_app_name:
+        description: Existing Azure Web App name
+        required: true
+      app_version:
+        description: Application version
+        required: true
+        default: 1.0.0
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install and test
+        run: |
+          pip install -r requirements.txt
+          pytest -q
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update deployment metadata
+        run: |
+          az webapp config appsettings set             --resource-group "${{ inputs.resource_group }}"             --name "${{ inputs.web_app_name }}"             --settings               APP_VERSION="${{ inputs.app_version }}"               DEPLOYMENT_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Package
+        run: zip -r app.zip app requirements.txt -x '__pycache__/*' '*.pyc'
+
+      - name: Deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ inputs.web_app_name }}
+          package: app.zip
+
+      - name: Smoke test
+        run: |
+          URL="https://${{ inputs.web_app_name }}.azurewebsites.net/health"
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error "$URL"; then
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed; retrying in 10 seconds..."
+            sleep 10
+          done
+          exit 1

@@ -1,0 +1,52 @@
+name: Deploy Azure Infrastructure
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Azure resource group
+        required: true
+        default: rg-az204-appservice-dev
+      location:
+        description: Azure region
+        required: true
+        default: westeurope
+      name_prefix:
+        description: Globally unique lowercase prefix
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create resource group
+        run: |
+          az group create             --name "${{ inputs.resource_group }}"             --location "${{ inputs.location }}"
+
+      - name: Validate Bicep
+        run: |
+          az deployment group validate             --resource-group "${{ inputs.resource_group }}"             --template-file infrastructure/main.bicep             --parameters namePrefix="${{ inputs.name_prefix }}"
+
+      - name: Deploy Bicep
+        run: |
+          az deployment group create             --name "appservice-${{ github.run_number }}"             --resource-group "${{ inputs.resource_group }}"             --template-file infrastructure/main.bicep             --parameters namePrefix="${{ inputs.name_prefix }}"             --query properties.outputs             --output json | tee outputs.json
+
+      - name: Publish deployment outputs
+        run: |
+          echo "## Azure infrastructure deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat outputs.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
