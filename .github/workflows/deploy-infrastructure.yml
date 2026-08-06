@@ -1,52 +1,147 @@
-name: Deploy Azure Infrastructure
+name: Azure Infrastructure
+
+# This workflow runs only when you start it manually.
 on:
   workflow_dispatch:
     inputs:
-      resource_group:
-        description: Azure resource group
+      operation:
+        description: Preview changes or deploy resources
         required: true
-        default: rg-az204-appservice-dev
-      location:
-        description: Azure region
-        required: true
-        default: westeurope
-      name_prefix:
-        description: Globally unique lowercase prefix
-        required: true
+        type: choice
+        options:
+          - preview
+          - deploy
+        default: preview
 
+      name_prefix:
+        description: Globally unique prefix for Azure resource names
+        required: true
+        type: string
+        default: hamza204demo
+
+      sku_name:
+        description: App Service Plan SKU
+        required: true
+        type: choice
+        options:
+          - B1
+          - S1
+          - P1v3
+        default: B1
+
+      environment_name:
+        description: Deployment environment
+        required: true
+        type: choice
+        options:
+          - development
+          - test
+          - production
+        default: development
+
+# id-token: write allows GitHub to request the OIDC token.
+# contents: read allows the workflow to read repository files.
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  deploy:
+  infrastructure:
+    name: ${{ inputs.operation }} infrastructure
     runs-on: ubuntu-latest
-    environment: development
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Azure login with OIDC
-        uses: azure/login@v2
+    # Must match the GitHub environment and Azure federated credential.
+    environment: development
+
+    steps:
+      # Download the repository files to the GitHub runner.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Authenticate to Azure using the passwordless OIDC connection
+      # that we previously configured.
+      - name: Log in to Azure using OIDC
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Create resource group
+      # Confirm that the workflow is using the expected Azure account.
+      - name: Display Azure context
         run: |
-          az group create             --name "${{ inputs.resource_group }}"             --location "${{ inputs.location }}"
+          az account show \
+            --query "{subscription:name, subscriptionId:id, tenantId:tenantId}" \
+            --output table
 
-      - name: Validate Bicep
+      # Confirm that our least-privilege target Resource Group exists
+      # and that the GitHub identity can access it.
+      - name: Verify target Resource Group
         run: |
-          az deployment group validate             --resource-group "${{ inputs.resource_group }}"             --template-file infrastructure/main.bicep             --parameters namePrefix="${{ inputs.name_prefix }}"
+          az group show \
+            --name "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "{name:name, location:location, provisioningState:properties.provisioningState}" \
+            --output table
 
-      - name: Deploy Bicep
+      # Compile the Bicep source into an ARM JSON template.
+      # This catches Bicep syntax and compilation problems.
+      - name: Build Bicep template
         run: |
-          az deployment group create             --name "appservice-${{ github.run_number }}"             --resource-group "${{ inputs.resource_group }}"             --template-file infrastructure/main.bicep             --parameters namePrefix="${{ inputs.name_prefix }}"             --query properties.outputs             --output json | tee outputs.json
+          az bicep build \
+            --file infrastructure/main.bicep \
+            --stdout > /tmp/main.json
 
-      - name: Publish deployment outputs
+      # Ask Azure Resource Manager whether the deployment is valid.
+      # This does not create the resources.
+      - name: Validate infrastructure
+        run: |
+          az deployment group validate \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file infrastructure/main.bicep \
+            --parameters \
+              namePrefix="${{ inputs.name_prefix }}" \
+              skuName="${{ inputs.sku_name }}" \
+              environmentName="${{ inputs.environment_name }}" \
+            --output none
+
+      # Show exactly what Azure predicts it would create or change.
+      # This still does not deploy the resources.
+      - name: Preview infrastructure changes
+        run: |
+          az deployment group what-if \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file infrastructure/main.bicep \
+            --parameters \
+              namePrefix="${{ inputs.name_prefix }}" \
+              skuName="${{ inputs.sku_name }}" \
+              environmentName="${{ inputs.environment_name }}"
+
+      # This step runs only when you selected "deploy".
+      # This is the first step that creates billable Azure resources.
+      - name: Deploy infrastructure
+        if: ${{ inputs.operation == 'deploy' }}
+        run: |
+          az deployment group create \
+            --name "appservice-${{ github.run_number }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file infrastructure/main.bicep \
+            --parameters \
+              namePrefix="${{ inputs.name_prefix }}" \
+              skuName="${{ inputs.sku_name }}" \
+              environmentName="${{ inputs.environment_name }}" \
+            --query properties.outputs \
+            --output json | tee deployment-outputs.json
+
+      # Add important deployment information to the GitHub run summary.
+      - name: Publish deployment summary
+        if: ${{ inputs.operation == 'deploy' }}
         run: |
           echo "## Azure infrastructure deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Resource Group:** ${{ vars.AZURE_RESOURCE_GROUP }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Environment:** ${{ inputs.environment_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**SKU:** ${{ inputs.sku_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          cat outputs.json >> "$GITHUB_STEP_SUMMARY"
+          cat deployment-outputs.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"

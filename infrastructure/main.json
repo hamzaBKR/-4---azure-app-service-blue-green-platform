@@ -1,0 +1,188 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "11381775668116617512"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region used for all resources."
+      }
+    },
+    "namePrefix": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 30,
+      "metadata": {
+        "description": "Globally unique lowercase prefix used to generate resource names."
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "B1",
+        "S1",
+        "P1v3"
+      ],
+      "metadata": {
+        "description": "App Service Plan SKU. Use B1 for the first lab and S1 later for deployment slots."
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "development",
+      "allowedValues": [
+        "development",
+        "test",
+        "production"
+      ],
+      "metadata": {
+        "description": "Environment represented by this deployment."
+      }
+    }
+  },
+  "variables": {
+    "normalizedPrefix": "[toLower(parameters('namePrefix'))]",
+    "skuTier": "[if(equals(parameters('skuName'), 'B1'), 'Basic', if(equals(parameters('skuName'), 'S1'), 'Standard', 'PremiumV3'))]",
+    "planName": "[format('{0}-asp', variables('normalizedPrefix'))]",
+    "webAppName": "[format('{0}-web', variables('normalizedPrefix'))]",
+    "logAnalyticsName": "[format('{0}-law', variables('normalizedPrefix'))]",
+    "applicationInsightsName": "[format('{0}-appi', variables('normalizedPrefix'))]",
+    "commonTags": {
+      "project": "azure-app-service-blue-green-platform",
+      "environment": "[parameters('environmentName')]",
+      "managedBy": "bicep",
+      "purpose": "az204-devops-lab"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('logAnalyticsName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('commonTags')]",
+      "properties": {
+        "retentionInDays": 30,
+        "features": {
+          "enableLogAccessUsingOnlyResourcePermissions": true
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[variables('applicationInsightsName')]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "tags": "[variables('commonTags')]",
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('planName')]",
+      "location": "[parameters('location')]",
+      "kind": "linux",
+      "tags": "[variables('commonTags')]",
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "tier": "[variables('skuTier')]",
+        "capacity": 1
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('webAppName')]",
+      "location": "[parameters('location')]",
+      "kind": "app,linux",
+      "tags": "[variables('commonTags')]",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "linuxFxVersion": "PYTHON|3.12",
+          "alwaysOn": true,
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2",
+          "http20Enabled": true,
+          "appCommandLine": "gunicorn --bind=0.0.0.0:8000 --timeout 120 app.app:app",
+          "appSettings": [
+            {
+              "name": "APP_NAME",
+              "value": "Azure Service Status Dashboard"
+            },
+            {
+              "name": "APP_VERSION",
+              "value": "1.0.0"
+            },
+            {
+              "name": "APP_ENVIRONMENT",
+              "value": "[parameters('environmentName')]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').ConnectionString]"
+            },
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "true"
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "webAppName": {
+      "type": "string",
+      "value": "[variables('webAppName')]"
+    },
+    "webAppUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('webAppName')), '2023-12-01').defaultHostName)]"
+    },
+    "appServicePlanName": {
+      "type": "string",
+      "value": "[variables('planName')]"
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "value": "[variables('applicationInsightsName')]"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "value": "[variables('logAnalyticsName')]"
+    },
+    "deployedSku": {
+      "type": "string",
+      "value": "[format('{0} / {1}', parameters('skuName'), variables('skuTier'))]"
+    },
+    "deployedEnvironment": {
+      "type": "string",
+      "value": "[parameters('environmentName')]"
+    }
+  }
+}
