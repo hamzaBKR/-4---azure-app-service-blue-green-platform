@@ -73,6 +73,16 @@ jobs:
           az account show \
             --query "{subscription:name, subscriptionId:id, tenantId:tenantId}" \
             --output table
+            
+      # Fail immediately if the GitHub variable is missing.
+      - name: Check deployment configuration
+        run: |
+          echo "Resource Group = '${{ vars.AZURE_RESOURCE_GROUP }}'"
+
+          if [ -z "${{ vars.AZURE_RESOURCE_GROUP }}" ]; then
+            echo "ERROR: AZURE_RESOURCE_GROUP GitHub variable is empty."
+            exit 1
+          fi
 
       # Confirm that our least-privilege target Resource Group exists
       # and that the GitHub identity can access it.
