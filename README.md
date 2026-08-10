@@ -216,7 +216,7 @@ hamza204demo-law
 
 ## Deployed Azure Resources
 
-![Azure Resource Group and deployed resources](docs/screenshots/06-azure-resource-group.png)
+![Azure Resource Group and deployed resources](screenshots/06-azure-resource-group.png)
 
 # Application Deployment
 
@@ -237,13 +237,13 @@ Checkout
 
 ## Successful Application Deployment
 
-![Successful application deployment workflow](docs/screenshots/07-app-deployment-success.png)
+![Successful application deployment workflow](screenshots/07-app-deployment-success.png)
 
 # Application Validation
 
 The deployed Flask application shows health, version, environment, deployment timestamp, and the health endpoint.
 
-![Azure Service Status Dashboard](docs/screenshots/08-app-dashboard.png)
+![Azure Service Status Dashboard](screenshots/08-app-dashboard.png)
 
 ## Health Endpoint
 
@@ -265,7 +265,7 @@ Example:
 }
 ```
 
-![Health endpoint response](docs/screenshots/09-health-endpoint.png)
+![Health endpoint response](screenshots/09-health-endpoint.png)
 
 # Troubleshooting and Lessons Learned
 
