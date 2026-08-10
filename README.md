@@ -170,7 +170,7 @@ The repository uses:
 
 Only the secret names are visible below; the values are not exposed.
 
-![GitHub Actions repository secrets](docs/screenshots/01-github-secrets.png)
+
 
 ## Repository Variable
 
@@ -180,7 +180,7 @@ The Resource Group name is normal configuration data, so it is stored as a GitHu
 AZURE_RESOURCE_GROUP=rg-az204-appservice-dev
 ```
 
-![GitHub Actions repository variable](docs/screenshots/02-github-variable.png)
+
 
 > Important lesson: `${{ secrets.NAME }}` and `${{ vars.NAME }}` are different contexts.
 
