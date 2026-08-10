@@ -196,22 +196,6 @@ The infrastructure workflow is manually triggered and supports two operations:
 - `preview`
 - `deploy`
 
-## Preview Mode
-
-Preview runs Bicep build, validation, and `what-if` without creating resources.
-
-![Infrastructure preview inputs](docs/screenshots/03-infra-preview-input.png)
-
-## Deploy Mode
-
-Deploy runs the same safety checks and then creates the Azure resources.
-
-![Infrastructure deploy inputs](docs/screenshots/04-infra-deploy-input.png)
-
-## Successful Preview
-
-![Successful infrastructure preview](docs/screenshots/05-infra-preview-success.png)
-
 # Infrastructure as Code
 
 The Bicep deployment creates:
