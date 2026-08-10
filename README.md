@@ -285,17 +285,8 @@ Example:
 
 # Troubleshooting and Lessons Learned
 
-## 1. Windows Python / Git Bash vs WSL
 
-Gunicorn failed with:
-
-```text
-ModuleNotFoundError: No module named 'fcntl'
-```
-
-Fix: run Python, the virtual environment, Gunicorn, and shell commands consistently inside WSL/Linux.
-
-## 2. Client ID vs Service Principal Object ID
+## 1. Client ID vs Service Principal Object ID
 
 The Entra application has a client/application ID, while the service principal has its own object ID.
 
@@ -309,23 +300,9 @@ az role assignment create \
   --scope "$RESOURCE_GROUP_SCOPE"
 ```
 
-## 3. Bash vs PowerShell
 
-Bash:
 
-```bash
-SP_OBJECT_ID="value"
-```
-
-PowerShell:
-
-```powershell
-$SP_OBJECT_ID = "value"
-```
-
-Always confirm which shell is executing the command.
-
-## 4. OIDC Subject Mismatch
+## 2. OIDC Subject Mismatch
 
 Azure initially returned:
 
@@ -349,19 +326,9 @@ GitHub audience      == Entra federated credential audience
 
 This repository used GitHub's immutable OIDC subject format, so the Entra federated credential had to use that exact subject.
 
-## 5. Secrets vs Variables
 
-`AZURE_RESOURCE_GROUP` was initially created under Secrets, but the workflow referenced:
 
-```yaml
-${{ vars.AZURE_RESOURCE_GROUP }}
-```
-
-That produced an empty Resource Group value.
-
-Fix: create `AZURE_RESOURCE_GROUP` under **Actions → Variables**.
-
-## 6. Azure Resource Provider Registration
+## 3. Azure Resource Provider Registration
 
 The first deployment failed with:
 
@@ -393,25 +360,7 @@ Registered
 Registered
 ```
 
-## 7. `tee` Hid a Deployment Failure
-
-A pipeline such as:
-
-```bash
-az deployment group create ... | tee deployment-outputs.json
-```
-
-can hide the Azure CLI exit code.
-
-Fix:
-
-```bash
-set -o pipefail
-```
-
-Now a failed Azure deployment correctly fails the GitHub Actions job.
-
-## 8. Validate Before Deploying
+## 4. Validate Before Deploying
 
 The infrastructure workflow follows:
 
@@ -427,32 +376,6 @@ Deployment
 
 This makes failures easier to isolate.
 
-# Screenshot #10 Recommendation
-
-Nine screenshots were available in the current upload. A strong tenth screenshot would be the successful **Test Azure Login (OIDC)** workflow showing:
-
-```text
-Login to Azure using OIDC  ✅
-Show Azure account         ✅
-Verify Resource Group      ✅
-```
-
-Save it as:
-
-```text
-docs/screenshots/10-oidc-login-success.png
-```
-
-Then add:
-
-```markdown
-## OIDC Authentication Validation
-
-Before infrastructure deployment, a dedicated workflow validated the
-GitHub-to-Azure OIDC connection and Resource Group access.
-
-![Successful OIDC authentication](docs/screenshots/10-oidc-login-success.png)
-```
 
 # Cleanup and Cost Control
 
