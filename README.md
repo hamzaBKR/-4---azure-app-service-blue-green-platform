@@ -1,5 +1,8 @@
 # Azure App Service Blue/Green Platform
 
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/f8d2d822-4807-4e1e-9967-ad08120451d0" />
+
+
 A hands-on Azure DevOps project demonstrating Infrastructure as Code with **Bicep**, passwordless **GitHub Actions OIDC** authentication to Azure, least-privilege **Azure RBAC**, automated application deployment, monitoring foundations, and health validation.
 
 > **Cost note:** this lab creates billable Azure resources. Delete the Resource Group after testing. See [Cleanup and Cost Control](#cleanup-and-cost-control).
@@ -88,6 +91,8 @@ GitHub Repository
 │   └── main.bicep
 ├── scripts/
 │   └── bootstrap-oidc.sh
+├── screenshots/
+│  
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml
